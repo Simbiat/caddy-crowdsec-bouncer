@@ -145,7 +145,7 @@ caddy run --config Caddyfile
 
 ## Demo
 
-This repository also contains an example using Docker.
+This repository also contains an example using Docker inside the Demo folder.
 Steps to run this demo are as follows:
 
 ```bash
@@ -155,7 +155,7 @@ docker compose up -d crowdsec
 # add the Caddy bouncer, generating an API key
 docker compose exec crowdsec cscli bouncers add caddy-bouncer
 
-# copy and paste the API key in the ./docker/config.json file
+# copy and paste the API key in the ./demo/config.json file
 
 # run Caddy; at first run a custom build will be created using xcaddy
 docker compose up -d caddy

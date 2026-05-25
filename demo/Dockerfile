@@ -9,6 +9,10 @@ RUN xcaddy build \
     --with github.com/hslatman/caddy-crowdsec-bouncer/appsec@main \
     --with github.com/hslatman/caddy-crowdsec-bouncer/layer4@main
 
-FROM caddy:${CADDY_VERSION}
+FROM caddy:${CADDY_VERSION} AS caddy
+
+WORKDIR /
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+
+CMD ["/usr/bin/caddy", "run", "--config=/etc/caddy/config.json"]
