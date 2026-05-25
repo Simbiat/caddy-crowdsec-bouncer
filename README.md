@@ -18,14 +18,14 @@
   - [Utilities](#utilities)
     - [Usage](#usage-1)
   - [Client IP](#client-ip)
-  - [Roadmap](#roadmap)
+  - [Things That Can Be Done](#things-that-can-be-done)
     - [Contributing](#contributing)
 
 ## Description
 
-The Caddy CrowdSec Bouncer consists of five main components:
+The Caddy CrowdSec Bouncer consists of five components:
 
-- **Caddy App**: Responsible for communicating with a CrowdSec Agent via the CrowdSec *Local API* and keeping track of the agent's decisions. It supports both *StreamBouncer* (HTTP polling) and *LiveBouncer* (a request is made to the agent on every incoming connection).
+- **Caddy App**: Responsible for communicating with CrowdSec via the *Local API* and keeping track of its decisions. It supports both *StreamBouncer* (HTTP polling) and *LiveBouncer* (a request is made on every incoming connection).
 - **Bouncer HTTP Handler**: Checks client IPs of incoming HTTP requests against the decisions stored by the App. Multiple independent HTTP Handlers and Connection Matchers can share the storage exposed by the App.
 - **Layer 4 Connection Matcher**: Matches TCP and UDP IP addresses against the CrowdSec *Local API*. Uses the [Caddy Layer 4 app](https://github.com/mholt/caddy-l4).
 - **AppSec HTTP Handler**: Communicates with an AppSec component configured on your CrowdSec deployment, seamlessly checking incoming HTTP requests against configured rulesets.
@@ -48,12 +48,12 @@ You can use the bouncer by either building a custom Caddy image with Docker or b
 
 ### Option 1: Docker Build
 
-The easiest way to include the bouncer is to build a custom Caddy Docker image using `xcaddy`. Create a `Dockerfile`:
+To include the bouncer in a Docker Image using `xcaddy`. Create a `Dockerfile`:
 
 ```dockerfile
-ARG CADDY_VERSION=2.11
+ARG CADDY_VERSION=2
 
-FROM caddy:${CADDY_VERSION}-builder AS builder
+FROM caddy:${CADDY_VERSION}-builder-alpine AS builder
 
 RUN xcaddy build \
     --with github.com/mholt/caddy-l4 \
@@ -62,23 +62,23 @@ RUN xcaddy build \
     --with github.com/hslatman/caddy-crowdsec-bouncer/appsec@main \
     --with github.com/hslatman/caddy-crowdsec-bouncer/layer4@main
 
-FROM caddy:${CADDY_VERSION} AS caddy
+FROM caddy:${CADDY_VERSION}
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 ```
 
-### Option 2: Custom Go Build (xcaddy)
+### Option 2: Custom Go Build
 
 If you are compiling outside of Docker, you can fetch the modules using `go get`:
 
 ```bash
-# Get the CrowdSec Bouncer HTTP handler
+# get the CrowdSec Bouncer HTTP handler
 go get github.com/hslatman/caddy-crowdsec-bouncer/http
 
-# Get the CrowdSec layer4 connection matcher (only required for TCP/UDP level blocking)
+# get the CrowdSec layer4 connection matcher (only required for TCP/UDP level blocking)
 go get github.com/hslatman/caddy-crowdsec-bouncer/layer4
 
-# Get the AppSec HTTP handler (only required for CrowdSec AppSec support)
+# get the AppSec HTTP handler (only required for CrowdSec AppSec support)
 go get github.com/hslatman/caddy-crowdsec-bouncer/appsec
 ```
 
@@ -88,7 +88,53 @@ Configuration using a Caddyfile is supported for HTTP handlers and Layer 4 match
 
 Example Caddyfile:
 
-A comprehensive example of a Caddyfile using the module is provided in [examples/Caddyfile](examples/Caddyfile).
+```Caddyfile
+{
+  debug
+
+  crowdsec {
+    api_url http://localhost:8080
+    api_key <api_key>
+    ticker_interval 15s
+    appsec_url http://localhost:7422
+    #disable_streaming
+    #enable_hard_fails
+  }
+
+  layer4 {
+    localhost:4444 {
+      @crowdsec crowdsec
+      route @crowdsec {
+        proxy {
+          upstream localhost:6443
+        }
+      }
+    }
+  }
+}
+
+localhost:8443 {
+  route {
+    crowdsec
+    respond "Allowed by Bouncer!"
+  }
+}
+
+localhost:7443 {
+  route {
+    appsec
+    respond "Allowed by AppSec!"
+  }
+}
+
+localhost:6443 {
+  route {
+    crowdsec
+    appsec
+    respond "Allowed by Bouncer and AppSec!"
+  }
+}
+```
 
 Run the Caddy server
 
@@ -109,7 +155,7 @@ docker compose up -d crowdsec
 # add the Caddy bouncer, generating an API key
 docker compose exec crowdsec cscli bouncers add caddy-bouncer
 
-# Copy and paste the API key in the ./docker/config.json file
+# copy and paste the API key in the ./docker/config.json file
 
 # run Caddy; at first run a custom build will be created using xcaddy
 docker compose up -d caddy
@@ -170,7 +216,7 @@ You can override the default header using the [`client_ip_headers`](https://cadd
 
 *Note: For Caddy versions up to `v2.4.6` and older versions of this module, the [realip](https://github.com/kirsch33/realip) module is required.*
 
-## Roadmap
+## Things That Can Be Done
 
 - [ ] Add integration tests for the HTTP and L4 handlers
 - [ ] Implement tests for IPv6 support
