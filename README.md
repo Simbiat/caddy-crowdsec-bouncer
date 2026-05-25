@@ -37,8 +37,8 @@ CrowdSec is a free and open source security automation tool that uses local logs
 In addition to operating locally, an optional community integration is also available, through which crowd-sourced IP reputation lists are distributed.
 
 The architecture of CrowdSec is very modular.
-At its core is the CrowdSec Agent, which keeps track of all data and related systems.
-Bouncers are pieces of software that perform specific actions based on the decisions of the Agent.
+At its core is the CrowdSec Security Engine, which keeps track of all data and related systems.
+Bouncers are pieces of software that perform specific actions based on the decisions of the Security Engine.
 
 ## Usage
 
