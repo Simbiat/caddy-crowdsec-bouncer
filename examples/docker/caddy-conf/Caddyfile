@@ -5,7 +5,7 @@
 
         crowdsec {
                 api_url http://crowdsec:8080
-                api_key <your-key> #cscli bouncers add caddy
+                api_key <your-key> #docker compose exec crowdsec cscli bouncer add caddy
                 ticker_interval 10s
                 #appsec_url http://crowdsec:7422
         }

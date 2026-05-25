@@ -30,3 +30,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
       - caddy-logs:/var/log/caddy
+
+volumes:
+  caddy-logs:
+  caddy_data:
+  caddy_config:
+  crowdsec-db:
+  crowdsec-config:
