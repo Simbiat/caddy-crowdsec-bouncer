@@ -30,10 +30,11 @@ import (
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	"github.com/crowdsecurity/crowdsec/pkg/models"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/hslatman/caddy-crowdsec-bouncer/internal/bouncer"
 	"github.com/hslatman/caddy-crowdsec-bouncer/internal/command"
+	"github.com/hslatman/caddy-crowdsec-bouncer/internal/core"
 )
 
 func init() {
@@ -62,6 +63,9 @@ type CrowdSec struct {
 	// TickerInterval is the interval the StreamBouncer uses for querying
 	// the CrowdSec Local API. Defaults to "60s".
 	TickerInterval string `json:"ticker_interval,omitempty"`
+	// MetricsInterval is the interval with which the metrics get pushed
+	// to the CrowdSec Local API. Disabled by default.
+	MetricsInterval caddy.Duration `json:"metrics_interval,omitempty"`
 	// EnableStreaming indicates whether the StreamBouncer should be used.
 	// If it's false, the LiveBouncer is used. The StreamBouncer keeps
 	// CrowdSec decisions in memory, resulting in quicker lookups. The
@@ -73,16 +77,28 @@ type CrowdSec struct {
 	// Caddy continuing operation (with a chance of not performing)
 	// validations. Defaults to false.
 	EnableHardFails *bool `json:"enable_hard_fails,omitempty"`
+	// EnableCaddyMetrics enables metrics maintained by the CrowdSec
+	// module to be emitted at Caddy's /metrics endpoint.
+	EnableCaddyMetrics *bool `json:"enable_caddy_metrics,omitempty"`
 	// AppSecUrl is the URL of the AppSec component served by your
 	// CrowdSec installation. Disabled by default.
 	AppSecUrl string `json:"appsec_url,omitempty"`
 	// AppSecMaxBodySize is the maximum number of request body bytes that
 	// will be sent to your AppSec component.
 	AppSecMaxBodySize int `json:"appsec_max_body_bytes,omitempty"`
+	// AppSecTimeout is the maximum time to wait for a response from the
+	// AppSec component. Defaults to 2s. Keep it short relative to
+	// acceptable request latency.
+	AppSecTimeout caddy.Duration `json:"appsec_timeout,omitempty"`
+	// AppSecFailOpen indicates whether requests should be allowed
+	// through when the AppSec component is unavailable or returns errors.
+	// When false (the default), AppSec errors will result in requests
+	// being blocked.
+	AppSecFailOpen *bool `json:"appsec_fail_open,omitempty"`
 
-	ctx     caddy.Context
-	logger  *zap.Logger
-	bouncer *bouncer.Bouncer
+	ctx    caddy.Context
+	logger *zap.Logger
+	core   *core.Core
 }
 
 // Provision sets up the CrowdSec app.
@@ -104,20 +120,24 @@ func (c *CrowdSec) Provision(ctx caddy.Context) error {
 		c.TickerInterval = "60s"
 	}
 
-	bouncer, err := bouncer.New(c.APIKey, c.APIUrl, c.AppSecUrl, c.AppSecMaxBodySize, c.TickerInterval, c.logger)
+	var registry *prometheus.Registry
+	if c.enableCaddyMetrics() {
+		registry = ctx.GetMetricsRegistry()
+	}
+	core, err := core.New(c.APIKey, c.APIUrl, c.AppSecUrl, c.AppSecMaxBodySize, c.appSecTimeout(), c.isAppSecFailOpenEnabled(), c.TickerInterval, c.logger, registry, c.metricsInterval())
 	if err != nil {
 		return err
 	}
 
 	if c.isStreamingEnabled() {
-		bouncer.EnableStreaming()
+		core.EnableStreaming()
 	}
 
 	if c.shouldFailHard() {
-		bouncer.EnableHardFails()
+		core.EnableHardFails()
 	}
 
-	c.bouncer = bouncer
+	c.core = core
 
 	return nil
 }
@@ -127,8 +147,8 @@ func (c *CrowdSec) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("crowdsec API key must not be empty")
 	}
-	if c.bouncer == nil {
-		return errors.New("bouncer instance not available due to (potential) misconfiguration")
+	if c.core == nil {
+		return errors.New("core instance not available due to (potential) misconfiguration")
 	}
 	if err := c.checkModules(); err != nil {
 		return fmt.Errorf("failed checking CrowdSec modules: %w", err)
@@ -253,7 +273,7 @@ func matchModules(moduleIdentifiers ...string) (modules []moduleInfo, err error)
 }
 
 func (c *CrowdSec) Cleanup() error {
-	if err := c.bouncer.Shutdown(); err != nil {
+	if err := c.core.Shutdown(); err != nil {
 		return fmt.Errorf("failed cleaning up: %w", err)
 	}
 
@@ -268,29 +288,57 @@ func (c *CrowdSec) Cleanup() error {
 
 // Start starts the CrowdSec Caddy app
 func (c *CrowdSec) Start() error {
-	if err := c.bouncer.Init(); err != nil {
+	if err := c.core.Init(); err != nil {
 		return err
 	}
 
-	c.bouncer.Run(context.Background())
+	c.core.Run(context.Background())
 
 	return nil
 }
 
 // Stop stops the CrowdSec Caddy app
 func (c *CrowdSec) Stop() error {
-	return c.bouncer.Shutdown()
+	return c.core.Shutdown()
 }
 
 // IsAllowed is used by the CrowdSec HTTP handler to check if
 // an IP is allowed to perform a request.
 func (c *CrowdSec) IsAllowed(ip netip.Addr) (bool, *models.Decision, error) {
-	return c.bouncer.IsAllowed(ip, false)
+	return c.core.IsAllowed(ip, false, "")
 }
 
 // CheckRequest checks the incoming request against AppSec.
 func (c *CrowdSec) CheckRequest(ctx context.Context, r *http.Request) error {
-	return c.bouncer.CheckRequest(ctx, r)
+	return c.core.CheckRequest(ctx, r)
+}
+
+func (c *CrowdSec) IncrementProcessedRequests(ctx context.Context, server, module string, isIPv6 bool) context.Context {
+	return c.core.IncrementProcessedRequests(ctx, server, module, isIPv6)
+}
+
+func (c *CrowdSec) IncrementBlockedRequests(server, origin, remediation string, isIPv6 bool) {
+	c.core.IncrementBlockedRequests(server, origin, remediation, isIPv6)
+}
+
+func (c *CrowdSec) metricsInterval() time.Duration {
+	return time.Duration(c.MetricsInterval)
+}
+
+func (c *CrowdSec) enableCaddyMetrics() bool {
+	return c.EnableCaddyMetrics != nil && *c.EnableCaddyMetrics
+}
+
+func (c *CrowdSec) appSecTimeout() time.Duration {
+	if c.AppSecTimeout == 0 {
+		return 2 * time.Second
+	}
+
+	return time.Duration(c.AppSecTimeout)
+}
+
+func (c *CrowdSec) isAppSecFailOpenEnabled() bool {
+	return c.AppSecFailOpen != nil && *c.AppSecFailOpen
 }
 
 func (c *CrowdSec) isStreamingEnabled() bool {

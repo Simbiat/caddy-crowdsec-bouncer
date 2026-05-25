@@ -1,4 +1,4 @@
-package bouncer
+package core
 
 import (
 	"net/netip"
@@ -11,11 +11,14 @@ import (
 	"github.com/crowdsecurity/crowdsec/pkg/models"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jarcoal/httpmock"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/hslatman/caddy-crowdsec-bouncer/internal/metrics"
 )
 
-func newBouncer(t *testing.T) (*Bouncer, error) {
+func newCore(t *testing.T) (*Core, error) {
 	t.Helper()
 
 	key := "apiKey"
@@ -23,7 +26,8 @@ func newBouncer(t *testing.T) (*Bouncer, error) {
 	tickerInterval := "10s"
 	logger := zaptest.NewLogger(t)
 
-	bouncer, err := New(key, host, "", 0, tickerInterval, logger)
+	appSecTimeout := 2 * time.Second
+	bouncer, err := New(key, host, "", 0, appSecTimeout, false, tickerInterval, logger, nil, 0)
 	require.NoError(t, err)
 
 	bouncer.EnableStreaming()
@@ -49,7 +53,9 @@ func newBouncer(t *testing.T) (*Bouncer, error) {
 	bouncer.streamingBouncer.TickerIntervalDuration, err = time.ParseDuration(bouncer.streamingBouncer.TickerInterval)
 	require.NoError(t, err)
 
-	bouncer.metricsProvider, err = newMetricsProvider(bouncer.streamingBouncer.APIClient, bouncer.updateMetrics, time.Minute)
+	metricsRegistry := prometheus.NewRegistry()
+	fakeCaddyMetricsRegistry := prometheus.NewRegistry()
+	bouncer.metricsProvider, err = metrics.NewProvider(metricsRegistry, fakeCaddyMetricsRegistry, 0, bouncer.logger, bouncer.instanceID, userAgentName, userAgentVersion)
 
 	// initialization of the bouncer finished; running is responsibility of the caller
 
@@ -122,8 +128,10 @@ func decisions() *models.DecisionsStreamResponse {
 }
 
 func TestStreamingBouncer(t *testing.T) {
-	b, err := newBouncer(t)
+	b, err := newCore(t)
 	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = b.Shutdown() })
 
 	// activate httpmock so that responses can be mocked
 	httpmock.Activate()
@@ -213,7 +221,7 @@ func TestStreamingBouncer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got, _, err := b.IsAllowed(tt.args.ip, forceLive)
+		got, _, err := b.IsAllowed(tt.args.ip, forceLive, "")
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. b.IsAllowed() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
