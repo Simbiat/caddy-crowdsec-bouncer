@@ -4,15 +4,14 @@
         order appsec after crowdsec
 
         crowdsec {
-                api_url http://127.0.0.1:8080
+                api_url http://crowdsec:8080
                 api_key <your-key> #cscli bouncers add caddy
                 ticker_interval 10s
-                #appsec_url http://127.0.0.1:7422
+                #appsec_url http://crowdsec:7422
         }
 }
 
 #snippets
-
 (crowdsec) {
         crowdsec
         #appsec
