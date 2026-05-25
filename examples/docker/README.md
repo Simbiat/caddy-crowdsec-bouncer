@@ -1,4 +1,4 @@
-# Caddy + CrowdSec (Docker Compose example)
+# Docker Compose example
 
 ## Usage
 
