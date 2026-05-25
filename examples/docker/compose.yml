@@ -15,7 +15,7 @@ services:
       - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml
       - caddy-logs:/var/log/caddy
       - crowdsec-db:/var/lib/crowdsec/data/
-      - crowdsec-config:/et:c/crowdsec/
+      - crowdsec-config:/etc/crowdsec/
 
   reverse-proxy:
     build:

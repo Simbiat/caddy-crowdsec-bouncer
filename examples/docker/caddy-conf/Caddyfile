@@ -23,10 +23,10 @@
 #proxies
 your.domain {
         import crowdsec
-        reverse_proxy localhost:8888
+        reverse_proxy host.docker.internal:8888
 }
 
 your.second.domain {
         import crowdsec
-        reverse_proxy localhost:11000
+        reverse_proxy host.docker.internal:11000
 }
