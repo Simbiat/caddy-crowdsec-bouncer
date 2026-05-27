@@ -1,10 +1,11 @@
-package bouncer
+package core
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -14,39 +15,44 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/hslatman/caddy-crowdsec-bouncer/internal/httputils"
+	"github.com/hslatman/caddy-crowdsec-bouncer/internal/metrics"
 )
 
 type appsec struct {
-	apiURL      string
-	apiKey      string
-	maxBodySize int
-	logger      *zap.Logger
-	client      *http.Client
-	pool        *bpool.BufferPool
+	apiURL          string
+	apiKey          string
+	maxBodySize     int
+	failOpen        bool
+	logger          *zap.Logger
+	client          *http.Client
+	metricsProvider *metrics.Provider
+	pool            *bpool.BufferPool
 }
 
-func newAppSec(apiURL, apiKey string, maxBodySize int, logger *zap.Logger) *appsec {
+func newAppSec(apiURL, apiKey string, maxBodySize int, timeout time.Duration, failOpen bool, logger *zap.Logger, metricsProvider *metrics.Provider) *appsec {
 	return &appsec{
 		apiURL:      apiURL,
 		apiKey:      apiKey,
 		maxBodySize: maxBodySize,
+		failOpen:    failOpen,
 		logger:      logger,
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: timeout,
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
-					Timeout:   30 * time.Second,
+					Timeout:   timeout,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          100,
 				IdleConnTimeout:       60 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
+				TLSHandshakeTimeout:   timeout,
 				ExpectContinueTimeout: 1 * time.Second,
 			},
 		},
-		pool: bpool.NewBufferPool(64),
+		metricsProvider: metricsProvider,
+		pool:            bpool.NewBufferPool(64),
 	}
 }
 
@@ -119,11 +125,12 @@ func (a *appsec) checkRequest(ctx context.Context, r *http.Request) error {
 	// includes the patch.
 	req.ContentLength = int64(contentLength)
 
-	totalAppSecCalls.Inc()
+	a.metricsProvider.IncrementTotalAppSecCalls()
 	resp, err := a.client.Do(req)
 	if err != nil {
-		totalAppSecErrors.Inc()
-		return err
+		a.metricsProvider.IncrementTotalAppSecErrors()
+		a.logger.Error("appsec component unavailable", zap.Error(err), zap.String("appsec_url", a.apiURL))
+		return a.failOpenOrErr(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -137,7 +144,7 @@ func (a *appsec) checkRequest(ctx context.Context, r *http.Request) error {
 		return nil
 	case 401:
 		a.logger.Error("appsec component not authenticated", zap.String("code", resp.Status), zap.String("appsec_url", a.apiURL))
-		return nil // this fails open, currently; make it fail hard if configured to do so?
+		return a.failOpenOrErr(fmt.Errorf("appsec component not authenticated: %s", resp.Status))
 	case 403:
 		var r appsecResponse
 		if err := json.Unmarshal(responseBody, &r); err != nil {
@@ -150,14 +157,21 @@ func (a *appsec) checkRequest(ctx context.Context, r *http.Request) error {
 		return nil
 	case 500:
 		a.logger.Error("appsec component internal error", zap.String("code", resp.Status), zap.String("appsec_url", a.apiURL))
-		return nil // this fails open, currently; make it fail hard if configured to do so?
+		return a.failOpenOrErr(fmt.Errorf("appsec component internal error: %s", resp.Status))
 	default:
 		a.logger.Error("appsec component returned unsupported status", zap.String("code", resp.Status), zap.String("appsec_url", a.apiURL))
 		return nil
 	}
 }
 
-func (b *Bouncer) logAppSecStatus() {
+func (a *appsec) failOpenOrErr(err error) error {
+	if a.failOpen {
+		return nil
+	}
+	return err
+}
+
+func (b *Core) logAppSecStatus() {
 	if b.appsec.apiURL == "" {
 		b.logger.Info("appsec disabled")
 		return

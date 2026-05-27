@@ -1,4 +1,4 @@
-package bouncer
+package core
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/hslatman/caddy-crowdsec-bouncer/internal/httputils"
+	"github.com/hslatman/caddy-crowdsec-bouncer/internal/metrics"
 )
 
 func newCaddyVarsContext(ctx context.Context) context.Context {
@@ -36,10 +38,12 @@ func Test_appsec_checkRequest(t *testing.T) {
 	okPostRequest := httptest.NewRequest(http.MethodPost, "/path", bytes.NewBufferString("body"))
 	okPostRequest.Header.Set("User-Agent", "test-appsec")
 
-	// TODO: add test for no connection; reading error?
+	appSecTimeout := 2 * time.Second
+
 	// TODO: add assertions for responses and how they're handled
 	type fields struct {
 		maxBodySize int
+		failOpen    bool
 	}
 	type args struct {
 		ctx context.Context
@@ -52,6 +56,7 @@ func Test_appsec_checkRequest(t *testing.T) {
 		expectedMethod string
 		expectedBody   []byte
 		wantErr        bool
+		serverDown     bool
 	}{
 		{
 			name: "ok get",
@@ -90,6 +95,26 @@ func Test_appsec_checkRequest(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "fail open on connection error",
+			fields: fields{
+				failOpen: true,
+			},
+			args: args{
+				ctx: ctx,
+				r:   okGetRequest,
+			},
+			serverDown: true,
+		},
+		{
+			name: "fail hard on connection error",
+			args: args{
+				ctx: ctx,
+				r:   okGetRequest,
+			},
+			serverDown: true,
+			wantErr:    true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,9 +137,14 @@ func Test_appsec_checkRequest(t *testing.T) {
 			})
 
 			s := httptest.NewServer(h)
-			t.Cleanup(s.Close)
+			if tt.serverDown {
+				s.Close()
+			} else {
+				t.Cleanup(s.Close)
+			}
 
-			a := newAppSec(s.URL, "test-apikey", tt.fields.maxBodySize, logger)
+			m := &metrics.Provider{}
+			a := newAppSec(s.URL, "test-apikey", tt.fields.maxBodySize, appSecTimeout, tt.fields.failOpen, logger, m)
 			err := a.checkRequest(tt.args.ctx, tt.args.r)
 			if tt.wantErr {
 				require.Error(t, err)
