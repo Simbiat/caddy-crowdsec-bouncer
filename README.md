@@ -70,21 +70,17 @@ You'll also need to use a recent version of Caddy (i.e. 2.7.3 and newer) and Go 
 
 ### Configuration Options
 
-| Directive               | Description                                                       | Default                  |
-|:------------------------|:------------------------------------------------------------------|:-------------------------|
-| `api_url`               | The URL of the CrowdSec Local API.                                | `http://127.0.0.1:8080/` |
-| `api_key`               | The API key to authenticate with the Local API.                   | *Required*               |
-| `ticker_interval`       | Interval for pulling decisions from the Local API.                | `60s`                    |
-| `appsec_url`            | The URL of the CrowdSec AppSec component.                         | (Disabled)               |
-| `appsec_max_body_bytes` | Maximum request body size sent to AppSec.                         |                          |
-| `disable_streaming`     | Falls back to LiveBouncer mode (queries API per request).         | `false`                  |
-| `enable_hard_fails`     | Caddy fails to start if CrowdSec API is unreachable.              | `false`                  |
-| `enable_caddy_metrics`  | Enables emitting bouncer metrics at Caddy's `/metrics` endpoint.  | `false`                  |
-| `enable_caddy_error`    | Propagates decisions as Caddy errors to allow custom error pages. | `false`                  |
-
-**Security Warning (`enable_caddy_error`)**:
-Native responses (403/429) are designed to mitigate high-volume attacks.
-If you enable custom Caddy errors, ensure your `handle_errors` route is strictly static to avoid resource exhaustion.
+| Directive              | Description                                                                                                                                                         | Default                 |
+|:-----------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------|
+| `api_url`              | The URL of the CrowdSec Local API.                                                                                                                                  | `http://127.0.0.1:8080/`|
+| `api_key`              | The API key to authenticate with the Local API.                                                                                                                     | *Required*              |
+| `ticker_interval`      | Interval for pulling decisions from the Local API.                                                                                                                  | `60s`                   |
+| `appsec_url`           | The URL of the CrowdSec AppSec component.                                                                                                                           | (Disabled)              |
+| `appsec_max_body_bytes`| Maximum request body size sent to AppSec.                                                                                                                           |                         |
+| `disable_streaming`    | Falls back to LiveBouncer mode (queries API per request).                                                                                                           | `false`                 |
+| `enable_hard_fails`    | Caddy fails to start if CrowdSec API is unreachable.                                                                                                                | `false`                 |
+| `enable_caddy_metrics` | Enables emitting bouncer metrics at Caddy's `/metrics` endpoint.                                                                                                    | `false`                 |
+| `enable_caddy_error`   | Propagates decisions as Caddy errors to allow custom error pages. **Warning:** Ensure `handle_errors` routes are strictly static to avoid resource exhaustion (DoS).| `false`                 |
 
 ### Example
 
