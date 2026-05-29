@@ -197,7 +197,8 @@ func NewProvider(metricsRegistry, caddyMetricsRegistry *prometheus.Registry, int
 		return nil, fmt.Errorf("failed registering metrics with Caddy registry: %w", err)
 	}
 
-	osName, osVersion := version.DetectOS()
+	osName, osFamily, osVersion := version.DetectOS()
+	_ = osFamily
 
 	m := &Provider{
 		interval:                          interval,
