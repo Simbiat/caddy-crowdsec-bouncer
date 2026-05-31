@@ -89,7 +89,7 @@ go get github.com/hslatman/caddy-crowdsec-bouncer/appsec
 
 Configuration using a Caddyfile is supported for HTTP handlers and Layer 4 matchers.
 
-### Configuration Options
+#### Configuration Options
 
 | Directive               | Description                                                                                                                                                         | Default                  |
 |:------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------|
@@ -106,9 +106,7 @@ Configuration using a Caddyfile is supported for HTTP handlers and Layer 4 match
 | `appsec_fail_open`      | Ignore AppSec component connection errors.                                                                                                                          | `false`                  |
 | `enable_caddy_error`    | Propagates decisions as Caddy errors to allow custom error pages. **Warning:** Ensure `handle_errors` routes are strictly static to avoid resource exhaustion (DoS).| `false`                  |
 
-### Example
-
-Example Caddyfile:
+#### Example
 
 ```Caddyfile
 {
@@ -252,6 +250,6 @@ You can override the default header using the [`client_ip_headers`](https://cadd
 
 ...and more things to come!
 
-### Contributing
+## Contributing
 
 We are always open to contributions! Whether it's fixing bugs, improving documentation, or adding new features from the Roadmap above, your help is welcome. Feel free to open an issue or submit a pull request.
