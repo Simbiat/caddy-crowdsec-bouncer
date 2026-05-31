@@ -77,6 +77,13 @@ type CrowdSec struct {
 	// Caddy continuing operation (with a chance of not performing)
 	// validations. Defaults to false.
 	EnableHardFails *bool `json:"enable_hard_fails,omitempty"`
+	// EnableCaddyError indicates whether access denied responses should be
+	// propagated as Caddy errors (allowing for custom error pages via handle_errors)
+	// instead of writing a raw HTTP response directly. Defaults to false.
+	// SECURITY NOTE: Raw writes are optimized for mitigating floods.
+	// Delegating to Caddy's error handler increases attack surface if
+	// the configured error route executes dynamic logic.
+	EnableCaddyError bool `json:"enable_caddy_error,omitempty"`
 	// EnableCaddyMetrics enables metrics maintained by the CrowdSec
 	// module to be emitted at Caddy's /metrics endpoint.
 	EnableCaddyMetrics *bool `json:"enable_caddy_metrics,omitempty"`
