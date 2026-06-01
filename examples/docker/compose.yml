@@ -1,0 +1,39 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8080:8080
+#     - 127.0.0.1:7422:7422 # uncomment if using appsec
+    environment:
+      COLLECTIONS: "crowdsecurity/caddy"
+#     COLLECTIONS: "crowdsecurity/caddy crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules" # uncommend if using appsec
+      GID: "${GID-1000}"
+    depends_on:
+      - "reverse-proxy"
+    volumes:
+      - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml
+      - caddy-logs:/var/log/caddy
+      - crowdsec-db:/var/lib/crowdsec/data/
+      - crowdsec-config:/etc/crowdsec/
+
+  reverse-proxy:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy-conf:/etc/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy-logs:/var/log/caddy
+
+volumes:
+  caddy-logs:
+  caddy_data:
+  caddy_config:
+  crowdsec-db:
+  crowdsec-config:

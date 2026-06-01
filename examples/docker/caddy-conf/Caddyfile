@@ -1,0 +1,32 @@
+#global
+{
+        order crowdsec first
+        order appsec after crowdsec
+
+        crowdsec {
+                api_url http://crowdsec:8080
+                api_key <your-key> #docker compose exec crowdsec cscli bouncer add caddy
+                ticker_interval 10s
+                #appsec_url http://crowdsec:7422
+        }
+}
+
+#snippets
+(crowdsec) {
+        crowdsec
+        #appsec
+        log access-log {
+                output file /var/log/caddy/access.log
+        }
+}
+
+#proxies
+your.domain {
+        import crowdsec
+        reverse_proxy host.docker.internal:8888
+}
+
+your.second.domain {
+        import crowdsec
+        reverse_proxy host.docker.internal:11000
+}

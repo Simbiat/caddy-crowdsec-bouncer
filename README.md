@@ -1,24 +1,35 @@
 # CrowdSec Bouncer for Caddy
 
-A [Caddy](https://caddyserver.com/) module that blocks malicious traffic based on decisions made by [CrowdSec](https://crowdsec.net/).
+[![Go Report Card](https://goreportcard.com/badge/github.com/hslatman/caddy-crowdsec-bouncer)](https://goreportcard.com/report/github.com/hslatman/caddy-crowdsec-bouncer)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+> A [Caddy](https://caddyserver.com/) module that blocks malicious traffic based on decisions made by [CrowdSec](https://crowdsec.net/).
+
+## Table of Contents
+- [CrowdSec Bouncer for Caddy](#crowdsec-bouncer-for-caddy)
+  - [Table of Contents](#table-of-contents)
+  - [Description](#description)
+    - [What is CrowdSec?](#what-is-crowdsec)
+  - [Usage](#usage)
+    - [Option 1: Docker Build](#option-1-docker-build)
+    - [Option 2: Custom Go Build (xcaddy)](#option-2-custom-go-build-xcaddy)
+    - [Configuration](#configuration)
+  - [Demo](#demo)
+  - [Utilities](#utilities)
+    - [Usage](#usage-1)
+  - [Client IP](#client-ip)
+  - [Things That Can Be Done](#things-that-can-be-done)
+    - [Contributing](#contributing)
 
 ## Description
 
-The Caddy CrowdSec Bouncer consists of the following five main pieces:
+The Caddy CrowdSec Bouncer consists of five components:
 
-* A Caddy App
-* A Caddy Bouncer HTTP Handler
-* A Caddy [Layer 4](https://github.com/mholt/caddy-l4) Connection Matcher
-* A Caddy AppSec HTTP Handler
-* The `caddy crowdsec` command
-
-The App is responsible for communicating with a CrowdSec Agent via the CrowdSec *Local API* and keeping track of the decisions of the Agent.
-The Bouncer HTTP Handler checks client IPs of incoming requests against the decisions stored by the App.
-This way, multiple independent HTTP Handlers and Connection Matchers can use the storage exposed by the App.
-The App can be configured to use either the StreamBouncer, which gets decisions via a HTTP polling mechanism, or the LiveBouncer, which sends a request on every incoming HTTP request or Layer 4 connection setup.
-The Layer 4 Connection Matcher matches TCP and UDP IP addresses against the CrowdSec *Local API*.
-The AppSec HTTP Handler communicates with an AppSec component configured on your CrowdSec deployment, and will check incoming HTTP requests against the rulesets configured.
-Finally, the `caddy crowdsec` command offers some useful commands for you CrowdSec integration.
+- **Caddy App**: Responsible for communicating with CrowdSec via the *Local API* and keeping track of its decisions. It supports both *StreamBouncer* (HTTP polling) and *LiveBouncer* (a request is made on every incoming connection).
+- **Bouncer HTTP Handler**: Checks client IPs of incoming HTTP requests against the decisions stored by the App. Multiple independent HTTP Handlers and Connection Matchers can share the storage exposed by the App.
+- **Layer 4 Connection Matcher**: Matches TCP and UDP IP addresses against the CrowdSec *Local API*. Uses the [Caddy Layer 4 app](https://github.com/mholt/caddy-l4).
+- **AppSec HTTP Handler**: Communicates with an AppSec component configured on your CrowdSec deployment, seamlessly checking incoming HTTP requests against configured rulesets.
+- **`caddy crowdsec` Command**: Offers useful Caddy CLI commands for your CrowdSec integration.
 
 ### What is CrowdSec?
 
@@ -26,49 +37,59 @@ CrowdSec is a free and open source security automation tool that uses local logs
 In addition to operating locally, an optional community integration is also available, through which crowd-sourced IP reputation lists are distributed.
 
 The architecture of CrowdSec is very modular.
-At its core is the CrowdSec Agent, which keeps track of all data and related systems.
-Bouncers are pieces of software that perform specific actions based on the decisions of the Agent.
+At its core is the CrowdSec Security Engine, which keeps track of all data and related systems.
+Bouncers are pieces of software that perform specific actions based on the decisions of the Security Engine.
 
 ## Usage
 
-Get the module
+> [!TIP]
+> You can find full setup examples in /examples inside this repository.
+
+You can use the bouncer by either building a custom Caddy image with Docker or by fetching the required Go modules directly into your own build.
+
+> **Note:** You will need a recent version of **Caddy (v2.7.3+)** and **Go (1.20+)**.
+
+### Option 1: Docker Build
+
+To include the bouncer in a Docker Image using `xcaddy`. Create a `Dockerfile`:
+
+```dockerfile
+ARG CADDY_VERSION=2
+
+FROM caddy:${CADDY_VERSION}-builder-alpine AS builder
+
+RUN xcaddy build \
+    --with github.com/mholt/caddy-l4 \
+    --with github.com/caddyserver/transform-encoder \
+    --with github.com/hslatman/caddy-crowdsec-bouncer/http@main \
+    --with github.com/hslatman/caddy-crowdsec-bouncer/appsec@main \
+    --with github.com/hslatman/caddy-crowdsec-bouncer/layer4@main
+
+FROM caddy:${CADDY_VERSION}
+
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+```
+
+### Option 2: Custom Go Build
+
+If you are compiling outside of Docker, you can fetch the modules using `go get`:
 
 ```bash
 # get the CrowdSec Bouncer HTTP handler
 go get github.com/hslatman/caddy-crowdsec-bouncer/http
 
-# get the CrowdSec layer4 connection matcher (only required if you need support for TCP/UDP level blocking)
+# get the CrowdSec layer4 connection matcher (only required for TCP/UDP level blocking)
 go get github.com/hslatman/caddy-crowdsec-bouncer/layer4
 
-# get the AppSec HTTP handler (only required if you want CrowdSec AppSec support)
+# get the AppSec HTTP handler (only required for CrowdSec AppSec support)
 go get github.com/hslatman/caddy-crowdsec-bouncer/appsec
 ```
 
-Create a (custom) Caddy server (or use *xcaddy*)
-
-```go
-package main
-
-import (
-  cmd "github.com/caddyserver/caddy/v2/cmd"
-  _ "github.com/caddyserver/caddy/v2/modules/standard"
-  // import the bouncer HTTP handler
-  _ "github.com/hslatman/caddy-crowdsec-bouncer/http"
-  // import the layer4 matcher (in case you want to block connections to layer4 servers using CrowdSec)
-  _ "github.com/hslatman/caddy-crowdsec-bouncer/layer4"
-  // import the appsec HTTP handler (in case you want to block requests using the CrowdSec AppSec component)
-  _ "github.com/hslatman/caddy-crowdsec-bouncer/appsec"
-)
-
-func main() {
-  cmd.Main()
-}
-```
+### Configuration
 
 Configuration using a Caddyfile is supported for HTTP handlers and Layer 4 matchers.
-You'll also need to use a recent version of Caddy (i.e. 2.7.3 and newer) and Go 1.20 (or newer).
 
-### Configuration Options
+#### Configuration Options
 
 | Directive               | Description                                                                                                                                                         | Default                  |
 |:------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------|
@@ -85,11 +106,9 @@ You'll also need to use a recent version of Caddy (i.e. 2.7.3 and newer) and Go 
 | `appsec_fail_open`      | Ignore AppSec component connection errors.                                                                                                                          | `false`                  |
 | `enable_caddy_error`    | Propagates decisions as Caddy errors to allow custom error pages. **Warning:** Ensure `handle_errors` routes are strictly static to avoid resource exhaustion (DoS).| `false`                  |
 
-### Example
+#### Example
 
-Example Caddyfile:
-
-```
+```Caddyfile
 {
   debug
 
@@ -147,28 +166,23 @@ caddy run --config Caddyfile
 
 ## Demo
 
-This repository also contains an example using Docker.
+This repository also contains an example using Docker inside the examples/demo folder.
 Steps to run this demo are as follows:
 
 ```bash
 # run CrowdSec container
-$ docker compose up -d crowdsec
+docker compose up -d crowdsec
 
 # add the Caddy bouncer, generating an API key
-$ docker compose exec crowdsec cscli bouncers add caddy-bouncer
+docker compose exec crowdsec cscli bouncers add caddy-bouncer
 
-# copy and paste the API key in the ./docker/config.json file
-# below is the git diff after changing the appropriate line:
-$ git diff
-
-- "api_key": "<api_key>",
-+ "api_key": "9e4ac94cf9aebaa3625a1d51951230a9",
+# copy and paste the API key in the ./examples/demo/config.json file
 
 # run Caddy; at first run a custom build will be created using xcaddy
-$ docker compose up -d caddy
+docker compose up -d caddy
 
 # tail the logs
-$ docker compose logs -tf
+docker compose logs -tf
 ```
 
 You can then access https://localhost:9443 and https://localhost:8443.
@@ -215,24 +229,27 @@ https://caddyserver.com/docs/command-line
 
 ## Client IP
 
-If your Caddy server with this bouncer is deployed behind a proxy, a CDN or another system fronting the web server, the IP of the client requesting a resource is masked by the system that sits between the client and your server.
-Starting with `v0.3.1`, the HTTP handler relies on Caddy to determine the actual client IP of the system performing the HTTP request. 
-The new logic was implemented as part of [caddy#5104](https://github.com/caddyserver/caddy/pull/5104), and released with Caddy `v2.7.0`.
-The IP that Caddy determines is used to check against the CrowdSec decisions to see if it's allowed in or not.
+When your Caddy server is deployed behind a proxy (like a CDN or load balancer), the actual client IP is masked. Starting with `v0.3.1`, this module relies on Caddy's native logic (introduced in Caddy `v2.7.0` via [caddy#5104](https://github.com/caddyserver/caddy/pull/5104)) to determine the correct client IP before checking it against CrowdSec decisions.
 
-Caddy determines the actual client IP from the `X-Forwarded-For` header by default, but it is possible to change this using the [client_ip_headers](https://caddyserver.com/docs/json/apps/http/servers/#client_ip_headers) directive in the global settings.
-The setting depends on the [trusted_proxies](https://caddyserver.com/docs/json/apps/http/servers/#trusted_proxies) directive to be set, so that the IP reported in the `X-Forwarded-For` (or one of the headers you configure as override) can be trusted.
+> **Important:** Caddy uses the `X-Forwarded-For` header by default. To trust this header, you **must** configure the [`trusted_proxies`](https://caddyserver.com/docs/json/apps/http/servers/#trusted_proxies) global directive in your Caddyfile.
 
-For older versions of this Caddy module, and for older versions of Caddy (up to `v2.4.6`), the [realip](https://github.com/kirsch33/realip) module can be used instead.
+You can override the default header using the [`client_ip_headers`](https://caddyserver.com/docs/json/apps/http/servers/#client_ip_headers) directive.
+
+*Note: For Caddy versions up to `v2.4.6` and older versions of this module, the [realip](https://github.com/kirsch33/realip) module is required.*
 
 ## Things That Can Be Done
 
-* Add integration tests for the HTTP and L4 handlers
-* Tests with IPv6
-* Test with *project conncept* (Caddy layer 4 app; TCP seems to work; UDP to be tested)
-* Add captcha action (currently works the same as a ban)?
-* Add support for custom actions (defaults to blocking access now)?
-* Add Caddy metrics integration?
-* Add Caddy profiling integration?
-* Caching the LiveBouncer (for the duration of the decision)?
-* ...
+- [ ] Add integration tests for the HTTP and L4 handlers
+- [ ] Implement tests for IPv6 support
+- [ ] Validate *project conncept* (Caddy layer 4 app: TCP working, UDP needs testing)
+- [ ] Add support for captcha actions
+- [ ] Implement support for custom actions (currently defaults to block)
+- [ ] Integrate with Caddy metrics
+- [ ] Integrate with Caddy profiling
+- [ ] Implement caching for the LiveBouncer
+
+...and more things to come!
+
+## Contributing
+
+We are always open to contributions! Whether it's fixing bugs, improving documentation, or adding new features from the Roadmap above, your help is welcome. Feel free to open an issue or submit a pull request.
