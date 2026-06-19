@@ -67,7 +67,7 @@ func determineIPFromRequest(ctx context.Context) (netip.Addr, error) {
 
 // WriteResponse writes a response to the [http.ResponseWriter] based on the Decision object provided.
 func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *decisionData, useCaddyError bool) error {
-	if decision == nil {
+	if data == nil {
 		return nil
 	}
 	message := "Serving CrowdSec response"
@@ -75,11 +75,11 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *decisionData
 
 	switch data.Type {
 		case "captcha":
-			return writeCaptchaResponse(w, data.statusCode, useCaddyError, message)
+			return writeCaptchaResponse(w, data.StatusCode, useCaddyError, message)
 		case "throttle":
 			return writeThrottleResponse(w,  data.Duration, useCaddyError, message)
 		default:
-			return writeBanResponse(w, data.statusCode, useCaddyError, message)
+			return writeBanResponse(w, data.StatusCode, useCaddyError, message)
 	}
 }
 
