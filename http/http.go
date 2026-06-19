@@ -116,7 +116,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 			Duration:   duration,
 			Value:      value,
 			Origin:     origin,
-			RawDecision: *decision,
+			RawDecision: decision,
 		}
 		if err := httputils.WriteResponse(w, h.logger, decisionData, h.crowdsec.EnableCaddyError); err != nil {
 			h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
