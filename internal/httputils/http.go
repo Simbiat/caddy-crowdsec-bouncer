@@ -74,10 +74,10 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 	message := fmt.Sprintf("CrowdSec issued %s decision", data.Type)
 	dataWithoutRequest := *data
 	dataWithoutRequest.Request = nil
-	dataWithoutRequest.Decision = nil
+	dataWithoutRequest.RawDecision = nil
 	logger.Info(message, zap.Any("details", dataWithoutRequest))
-	if data.Decision != nil {
-		logger.Debug("Raw decision data for the previous action", zap.Any("request", data.Decision))
+	if data.RawDecision != nil {
+		logger.Debug("Raw decision data for the previous action", zap.Any("request", data.RawDecision))
 	} else {
 		if data.Request != nil {
 			logger.Debug(
