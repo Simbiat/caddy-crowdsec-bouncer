@@ -61,6 +61,7 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, decision *models.D
 	if decision == nil {
 		return nil
 	}
+	message := "Serving CrowdSec response"
 	logger.Info(message, zap.Any("decision", decision))
 	typ := ""
 	if decision.Type != nil {
@@ -88,7 +89,7 @@ func writeBanResponse(w http.ResponseWriter, statusCode int, useCaddyError bool,
 		code = http.StatusForbidden
 	}
 	if useCaddyError {
-		return caddyhttp.Error(code, message)
+		return caddyhttp.Error(code, errors.New(message))
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(code)
@@ -113,7 +114,7 @@ func writeThrottleResponse(w http.ResponseWriter, duration string, useCaddyError
 	w.Header().Add("Retry-After", retryAfter)
 
 	if useCaddyError {
-		return caddyhttp.Error(http.StatusTooManyRequests, message)
+		return caddyhttp.Error(http.StatusTooManyRequests, errors.New(message))
 	}
 	w.WriteHeader(http.StatusTooManyRequests)
 	return nil
