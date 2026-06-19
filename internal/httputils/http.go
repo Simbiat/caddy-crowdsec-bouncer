@@ -31,6 +31,8 @@ type decisionData struct {
 	Type        string `default: "allow"`
 	StatusCode  int `default: 200`
 	Duration    string `default: ""`
+	Value       string `default: ""`
+	Origin      string `default: ""`
 	RawDecision *models.Decision `default: null`
 }
 
