@@ -72,8 +72,8 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 		return nil
 	}
 	message := fmt.Sprintf("CrowdSec issued %s decision", data.Type)
-	dataWithoutRequest := data
-	dataWithoutRequest.Request := "stripped"
+	dataWithoutRequest := *data
+	dataWithoutRequest.Request = "stripped"
 	logger.Info(message, zap.Any("decision", dataWithoutRequest))
 	logger.Debug(message, zap.Any("request", data.Request))
 
