@@ -110,7 +110,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		value := *decision.Value
 		duration := *decision.Duration
 		origin := *decision.Origin
-		decisionData := &decisionData{
+		decisionData := &httputils.DecisionData{
 			Type:       typ,
 			StatusCode: 0,
 			Duration:   duration,
