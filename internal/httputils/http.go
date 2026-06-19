@@ -80,7 +80,17 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 		logger.Debug("Raw decision data for the previous action", zap.Any("request", data.Decision))
 	} else {
 		if data.Request != nil {
-			logger.Debug("Reqest data for the previous action", zap.Any("request", data.Request))
+			logger.Debug(
+				"Reqest data for the previous action",
+			    zap.String("method", data.Request.Method),
+				zap.String("proto", data.Request.Proto),
+			    zap.String("url", data.Request.URL.String()),
+				zap.String("host", data.Request.Host),
+			    zap.String("remote_addr", data.Request.RemoteAddr),
+			    zap.Int64("content_length", data.Request.ContentLength),
+				zap.Any("form", data.Request.Form),
+			    zap.Any("headers", data.Request.Header),
+			)
 		}
 	}
 
