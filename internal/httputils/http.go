@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type decisionData struct {
+type DecisionData struct {
 	Type        string `default: "allow"`
 	StatusCode  int `default: 200`
 	Duration    string `default: ""`
