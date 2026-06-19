@@ -23,12 +23,8 @@ import (
 	"time"
 
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+	"github.com/crowdsecurity/crowdsec/pkg/models"
 	"go.uber.org/zap"
-)
-
-var (
-	ErrBanned    = errors.New("banned by crowdsec")
-	ErrThrottled = errors.New("throttled by crowdsec")
 )
 
 // determineIPFromRequest returns the IP of the client based on the value that
@@ -60,34 +56,39 @@ func determineIPFromRequest(ctx context.Context) (netip.Addr, error) {
 	return ip, nil
 }
 
-// WriteResponse writes a response to the [http.ResponseWriter] based on the typ, value,
-// duration and status code provide.
-func WriteResponse(w http.ResponseWriter, logger *zap.Logger, typ, value, duration string, statusCode int, useCaddyError bool) error {
+// WriteResponse writes a response to the [http.ResponseWriter] based on the Decision object provided.
+func WriteResponse(w http.ResponseWriter, logger *zap.Logger, decision *models.Decision, statusCode int, useCaddyError bool) error {
+	if decision == nil {
+		return nil
+	}
+	logger.Info(message, zap.Any("decision", decision))
+	typ := ""
+	if decision.Type != nil {
+		typ = *decision.Type
+	}
+
+	duration := ""
+	if decision.Duration != nil {
+		duration = *decision.Duration
+	}
 	switch typ {
-	case "ban":
-		logger.Debug(fmt.Sprintf("serving ban response to %s", value))
-		return writeBanResponse(w, statusCode, useCaddyError)
-	case "captcha":
-		logger.Debug(fmt.Sprintf("serving captcha (ban) response to %s", value))
-		return writeCaptchaResponse(w, statusCode, useCaddyError)
-	case "throttle":
-		logger.Debug(fmt.Sprintf("serving throttle response to %s", value))
-		return writeThrottleResponse(w, duration, useCaddyError)
-	default:
-		logger.Warn(fmt.Sprintf("got crowdsec decision type: %s", typ))
-		logger.Debug(fmt.Sprintf("serving ban response to %s", value))
-		return writeBanResponse(w, statusCode, useCaddyError)
+		case "captcha":
+			return writeCaptchaResponse(w, statusCode, useCaddyError, message)
+		case "throttle":
+			return writeThrottleResponse(w, duration, useCaddyError, message)
+		default:
+			return writeBanResponse(w, statusCode, useCaddyError, message)
 	}
 }
 
 // writeBanResponse writes a 403 status as response
-func writeBanResponse(w http.ResponseWriter, statusCode int, useCaddyError bool) error {
+func writeBanResponse(w http.ResponseWriter, statusCode int, useCaddyError bool, message string) error {
 	code := statusCode
 	if code <= 0 {
 		code = http.StatusForbidden
 	}
 	if useCaddyError {
-		return caddyhttp.Error(code, ErrBanned)
+		return caddyhttp.Error(code, message)
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(code)
@@ -95,13 +96,13 @@ func writeBanResponse(w http.ResponseWriter, statusCode int, useCaddyError bool)
 }
 
 // writeCaptchaResponse (currently) writes a 403 status as response
-func writeCaptchaResponse(w http.ResponseWriter, statusCode int, useCaddyError bool) error {
+func writeCaptchaResponse(w http.ResponseWriter, statusCode int, useCaddyError bool, message string) error {
 	// TODO: implement showing a captcha in some way. How? hCaptcha? And how to handle afterwards?
-	return writeBanResponse(w, statusCode, useCaddyError)
+	return writeBanResponse(w, statusCode, useCaddyError, message)
 }
 
 // writeThrottleResponse writes 429 status as response
-func writeThrottleResponse(w http.ResponseWriter, duration string, useCaddyError bool) error {
+func writeThrottleResponse(w http.ResponseWriter, duration string, useCaddyError bool, message string) error {
 	d, err := time.ParseDuration(duration)
 	if err != nil {
 		return err
@@ -112,7 +113,7 @@ func writeThrottleResponse(w http.ResponseWriter, duration string, useCaddyError
 	w.Header().Add("Retry-After", retryAfter)
 
 	if useCaddyError {
-		return caddyhttp.Error(http.StatusTooManyRequests, ErrThrottled)
+		return caddyhttp.Error(http.StatusTooManyRequests, message)
 	}
 	w.WriteHeader(http.StatusTooManyRequests)
 	return nil
