@@ -111,13 +111,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		duration := *decision.Duration
 		origin := *decision.Origin
 
-		if err := httputils.WriteResponse(w, h.logger, typ, value, duration, 0, h.crowdsec.EnableCaddyError); err != nil {
-			h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
-			return err
+		switch typ {
+		    case "ban", "captcha":
+		        code := http.StatusForbidden
+		        h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
+		        return caddyhttp.Error(code, fmt.Errorf(
+		            "Banned by crowdsec (id: %d, origin: %s)",
+		            *decision.ID,
+		            origin,
+		        ))
+		    case "throttle":
+		        // WriteResponse handles Retry-After header, keep using it
+		        if err := httputils.WriteResponse(w, h.logger, typ, value, duration, 0, h.crowdsec.EnableCaddyError); err != nil {
+		            h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
+		            return caddyhttp.Error(code, fmt.Errorf(
+			            "Throttled by crowdsec (id: %d, origin: %s)",
+			            *decision.ID,
+			            origin,
+			        ))
+		        }
+		    default:
+		        if err := httputils.WriteResponse(w, h.logger, typ, value, duration, 0, h.crowdsec.EnableCaddyError); err != nil {
+		            h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
+		            return err
+		        }
 		}
-
 		h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
-
 		return nil
 	}
 
