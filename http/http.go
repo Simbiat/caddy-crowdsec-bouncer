@@ -110,41 +110,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		value := *decision.Value
 		duration := *decision.Duration
 		origin := *decision.Origin
-		decId := decision.ID
-		scenario := *decision.Scenario
-		until := decision.Until
 
-		switch typ {
-		    case "ban", "captcha":
-		        code := http.StatusForbidden
-		        h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
-		        return caddyhttp.Error(code, fmt.Errorf(
-		            "Banned by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
-		            decId,
-		            value,
-					scenario,
-					until,
-		        ))
-		    case "throttle":
-		        // WriteResponse handles Retry-After header, keep using it
-		        if err := httputils.WriteResponse(w, h.logger, typ, value, duration, 0, h.crowdsec.EnableCaddyError); err != nil {
-					code := http.StatusTooManyRequests
-		            h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
-		            return caddyhttp.Error(code, fmt.Errorf(
-			            "Throttled by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
-			            decId,
-			            value,
-						scenario,
-						until,
-			        ))
-		        }
-		    default:
-		        if err := httputils.WriteResponse(w, h.logger, typ, value, duration, 0, h.crowdsec.EnableCaddyError); err != nil {
-		            h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
-		            return err
-		        }
+		if err := httputils.WriteResponse(w, h.logger, decision, 0, h.crowdsec.EnableCaddyError); err != nil {
+			h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
+			return err
 		}
+
 		h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
+
 		return nil
 	}
 
