@@ -66,7 +66,7 @@ func determineIPFromRequest(ctx context.Context) (netip.Addr, error) {
 }
 
 // WriteResponse writes a response to the [http.ResponseWriter] based on the Decision object provided.
-func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *decisionData, statusCode int, useCaddyError bool) error {
+func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *decisionData, useCaddyError bool) error {
 	if decision == nil {
 		return nil
 	}
