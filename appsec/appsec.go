@@ -113,11 +113,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 			h.crowdsec.IncrementBlockedRequests(server, module, "log", ip.Is6()) // TODO: properly set the action that was performed
 		default:
 			decisionData := &httputils.DecisionData{
-		        Type:       a.Action,
-		        StatusCode: a.StatusCode,
-		        Duration:   a.Duration,
-		        Value:      ip.String(),
-				Origin:     "appsec",
+		        Type:        a.Action,
+		        StatusCode:  a.StatusCode,
+		        Duration:    a.Duration,
+		        Value:       ip.String(),
+				Origin:      "appsec",
+				Request:     r,
 		        RawDecision: nil, // No full model object here
 		    }
 			if err := httputils.WriteResponse(w, h.logger, decisionData, h.crowdsec.EnableCaddyError); err != nil {
