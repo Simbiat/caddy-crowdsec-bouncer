@@ -110,16 +110,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		value := *decision.Value
 		duration := *decision.Duration
 		origin := *decision.Origin
-		decId := *decision.ID
+		decId := decision.ID
+		scenario := *decision.Scenario
+		until := decision.Until
 
 		switch typ {
 		    case "ban", "captcha":
 		        code := http.StatusForbidden
 		        h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
 		        return caddyhttp.Error(code, fmt.Errorf(
-		            "Banned by crowdsec (id: %d, origin: %s)",
+		            "Banned by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
 		            decId,
-		            origin,
+		            value,
 		        ))
 		    case "throttle":
 		        // WriteResponse handles Retry-After header, keep using it
@@ -127,9 +129,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 					code := http.StatusTooManyRequests
 		            h.crowdsec.IncrementBlockedRequests(server, origin, typ, ip.Is6()) // TODO: properly set the action that was performed
 		            return caddyhttp.Error(code, fmt.Errorf(
-			            "Throttled by crowdsec (id: %d, origin: %s)",
+			            "Throttled by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
 			            decId,
-			            origin,
+			            value,
 			        ))
 		        }
 		    default:
