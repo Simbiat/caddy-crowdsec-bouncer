@@ -33,8 +33,8 @@ type DecisionData struct {
 	Duration    string `default: ""`
 	Value       string `default: ""`
 	Origin      string `default: ""`
-	Request     *http.Request `default: null`
-	RawDecision *models.Decision `default: null`
+	Request     *http.Request `default: nil`
+	RawDecision *models.Decision `default: nil`
 }
 
 // determineIPFromRequest returns the IP of the client based on the value that
@@ -75,7 +75,7 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 	dataWithoutRequest := *data
 	dataWithoutRequest.Request = nil
 	logger.Info(message, zap.Any("decision", dataWithoutRequest))
-	if data.Request != nul {
+	if data.Request != nil {
 		logger.Debug("Reqest data for the previous decision", zap.Any("request", data.Request))
 	}
 
