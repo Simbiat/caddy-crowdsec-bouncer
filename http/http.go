@@ -122,6 +122,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		            "Banned by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
 		            decId,
 		            value,
+					scenario,
+					until,
 		        ))
 		    case "throttle":
 		        // WriteResponse handles Retry-After header, keep using it
@@ -132,6 +134,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 			            "Throttled by crowdsec (id: %d, value: %s, scenario: %s, until: %s)",
 			            decId,
 			            value,
+						scenario,
+						until,
 			        ))
 		        }
 		    default:
