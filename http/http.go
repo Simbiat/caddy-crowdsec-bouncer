@@ -111,11 +111,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyht
 		duration := *decision.Duration
 		origin := *decision.Origin
 		decisionData := &httputils.DecisionData{
-			Type:       typ,
-			StatusCode: 0,
-			Duration:   duration,
-			Value:      value,
-			Origin:     origin,
+			Type:        typ,
+			StatusCode:  0,
+			Duration:    duration,
+			Value:       value,
+			Origin:      origin,
+			Request:     r,
 			RawDecision: decision,
 		}
 		if err := httputils.WriteResponse(w, h.logger, decisionData, h.crowdsec.EnableCaddyError); err != nil {
