@@ -73,9 +73,11 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 	}
 	message := fmt.Sprintf("CrowdSec issued %s decision", data.Type)
 	dataWithoutRequest := *data
-	dataWithoutRequest.Request = "stripped"
+	dataWithoutRequest.Request = nil
 	logger.Info(message, zap.Any("decision", dataWithoutRequest))
-	logger.Debug(message, zap.Any("request", data.Request))
+	if data.Request != nul {
+		logger.Debug("Reqest data for the previous decision", zap.Any("request", data.Request))
+	}
 
 	switch data.Type {
 		case "captcha":
