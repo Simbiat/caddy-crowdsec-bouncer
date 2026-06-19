@@ -27,6 +27,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type decisionData struct {
+	Type        string `default: "allow"`
+	StatusCode  int `default: 200`
+	Duration    string `default: ""`
+	RawDecision *models.Decision `default: null`
+}
+
 // determineIPFromRequest returns the IP of the client based on the value that
 // Caddy extracts from the original request and stores in the request context.
 // Support for setting the real client IP in case a proxy sits in front of
@@ -57,28 +64,20 @@ func determineIPFromRequest(ctx context.Context) (netip.Addr, error) {
 }
 
 // WriteResponse writes a response to the [http.ResponseWriter] based on the Decision object provided.
-func WriteResponse(w http.ResponseWriter, logger *zap.Logger, decision *models.Decision, statusCode int, useCaddyError bool) error {
+func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *decisionData, statusCode int, useCaddyError bool) error {
 	if decision == nil {
 		return nil
 	}
 	message := "Serving CrowdSec response"
-	logger.Info(message, zap.Any("decision", decision))
-	typ := ""
-	if decision.Type != nil {
-		typ = *decision.Type
-	}
+	logger.Info(message, zap.Any("decision", data))
 
-	duration := ""
-	if decision.Duration != nil {
-		duration = *decision.Duration
-	}
-	switch typ {
+	switch data.Type {
 		case "captcha":
-			return writeCaptchaResponse(w, statusCode, useCaddyError, message)
+			return writeCaptchaResponse(w, data.statusCode, useCaddyError, message)
 		case "throttle":
-			return writeThrottleResponse(w, duration, useCaddyError, message)
+			return writeThrottleResponse(w,  data.Duration, useCaddyError, message)
 		default:
-			return writeBanResponse(w, statusCode, useCaddyError, message)
+			return writeBanResponse(w, data.statusCode, useCaddyError, message)
 	}
 }
 
