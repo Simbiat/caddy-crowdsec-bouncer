@@ -32,7 +32,7 @@
                 ]
             },
             // This is an example of the log for all CrowdSec-related activities, in case you want to separate them.
-            // You may want to use all 3 loggers to get the full picture of the bouncer is doing.
+            // You may want to use all 3 loggers to get the full picture of what the bouncer is doing.
             "bouncer": {
                 "writer": {
                     "output": "file",
