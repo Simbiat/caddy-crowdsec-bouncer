@@ -71,7 +71,11 @@ func WriteResponse(w http.ResponseWriter, logger *zap.Logger, data *DecisionData
 	if data == nil {
 		return nil
 	}
-	message := fmt.Sprintf("CrowdSec issued %s decision", data.Type)
+	if data.RawDecision != nil && data.RawDecision.ID != nil {
+		message := fmt.Sprintf("CrowdSec issued %s decision (ID %s)", data.Type, data.RawDecision.ID)
+	} else {
+		message := fmt.Sprintf("CrowdSec issued %s decision", data.Type)
+	}
 	dataWithoutRequest := *data
 	dataWithoutRequest.Request = nil
 	dataWithoutRequest.RawDecision = nil
