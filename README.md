@@ -164,6 +164,9 @@ Run the Caddy server
 caddy run --config Caddyfile 
 ```
 
+> [!TIP]
+> Some more advanced configuration using JSON with comments can be viewed [here](examples/advanced.jsonc).
+
 ## Demo
 
 This repository also contains an example using Docker inside the examples/demo folder.
